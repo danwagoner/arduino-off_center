@@ -10,9 +10,8 @@
 
 CRGB leds[NUM_LEDS_TOTAL];
 
-struct plate{
-   int direction, speed;
-} plates[NUM_PLATES];
+int direction = []
+int speed = []
 
 void setup() {
   Serial.begin(9600);
@@ -25,18 +24,9 @@ void setup() {
   FastLED.show();
 
   for (int p = 0; p < NUM_PLATES; p++){ //init plates
-    plates[p].direction = 1;
-    plates[p].speed = random(1,4);
-    // plates[p].hsv = (45, 200, 255);
-
-    // Serial.print("Plate: ");
-    // Serial.print (p);
-    // Serial.print(" Direction: ");
-    // Serial.print (plates[p].direction);
-    // Serial.print(" Speed: ");
-    // Serial.println (plates[p].speed);
+    direction[p] = 1;
+    speed[p] = random(1,4);
   }
-
 }
 
 void loop() {
@@ -60,13 +50,14 @@ void loop() {
       }
     }
     leds[i] = _targetHSV;
-    // Serial.print ("Plate: ");
-    // Serial.print (p);
-    // Serial.print (" Led: ");
-    // Serial.print (i);
-    // Serial.print (" Direction: ");
-    // Serial.print (plates[p].direction);
-    // Serial.print (" Value: ");
-    // Serial.println (_targetHSV.v);
+    Serial.print ("Plate: ");
+    Serial.print (p);
+    Serial.print (" Led: ");
+    Serial.print (i);
+    Serial.print (" Direction: ");
+    Serial.print (plates[p].direction);
+    Serial.print (" Value: ");
+    Serial.println (_targetHSV.v);
   }
+  //FastLED.show();
 }
