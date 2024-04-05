@@ -46,6 +46,12 @@ void setup() {
 }
 
 void loop() {
+  offcenterPulse();
+}
+
+void offcenterPulse(){
+// this function causes the plates to pulse randomly, slowly moving toward a pattern of pulsing in unison, then slowly moving back to a pattern for randomness.
+
   count ++;
   if (count == RECALC_RANDOM_INTERVAL){ // recalculate speed of all plates every so often to create some more randomness
     count = 0;
@@ -61,10 +67,10 @@ void loop() {
       // Serial.println (" << Speed Direction Changed - DOWN >>");
     }
 
-    if (speed_direction == 0){ // start to bring speed randomness together
+    if (speed_direction == 0){ // start to bring pulse speed into unison
       max_speed--;
     }
-    else { // start to spread speed randomness apart
+    else { // start to spread pulse speed apart
       max_speed++;
     }
 
@@ -80,33 +86,38 @@ void loop() {
       Serial.print (" | Speed: ");
       Serial.println (speed[p]);
     }
+    Serial.println ("======================================================== ");
   }
 
   for (int p = 0; p <= NUM_PLATES - 1; p++) { // sync plates with matching speeds
-    for (int o = 0; o <= NUM_PLATES - 1; o++) {
-      if (p != o){
+    for (int o = p + 1; o <= NUM_PLATES - 1; o++) {
+      // if (p != o){
         if (speed[p] == speed[o]){ // allow plates to "catch" one another by locking brightness momentarily
           if (v[o] == v[p]){ 
-            if (freeze[p] == 1){
-              freeze[p] = 0; // thaw
-              Serial.print("Thawing Plate ");
-              Serial.println(p);
-            }
             if (freeze[o] == 1){
               freeze[o] = 0; // thaw
+              v[o] = v[p];
               Serial.print("Thawing Plate ");
-              Serial.println(o);
+              Serial.print(o);
+              Serial.print(" - ");
+              Serial.print(v[o]);
+              Serial.print(" | ");
+              Serial.println(v[p]);
             }
           }
           else{
-            if (freeze[p] != 1 && freeze[o] != 1){
-              freeze[p] = 1; // freeze
+            if (freeze[o] != 1){
+              freeze[o] = 1; // freeze
               Serial.print("Freezing Plate ");
-              Serial.println(p);
+              Serial.print(o);
+              Serial.print(" - ");
+              Serial.print(v[o]);
+              Serial.print(" | ");
+              Serial.println(v[p]);
             }
           }
         }
-      }
+      // }
     }
   }
 
@@ -132,23 +143,6 @@ void loop() {
     CRGB rgb;
     hsv2rgb_rainbow( CHSV(h[p], s[p], v[p]), rgb );
     writeLEDs();
-    // Serial.print ("Plate: ");
-    // Serial.print (p);
-    // Serial.print (" Direction: ");
-    // Serial.print (direction[p]);
-    // Serial.print (" RGB: ");
-    // Serial.print (rgb.r);
-    // Serial.print (" ");
-    // Serial.print (rgb.g);
-    // Serial.print (" ");
-    // Serial.print (rgb.b);
-    // Serial.print (" HSV: ");
-    // Serial.print (h[p]);
-    // Serial.print (" ");
-    // Serial.print (s[p]);
-    // Serial.print (" ");
-    // Serial.println (v[p]);
-    // delay (500);
   }
 }
 
