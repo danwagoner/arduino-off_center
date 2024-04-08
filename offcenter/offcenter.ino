@@ -5,10 +5,11 @@
 #define NUM_LEDS                130
 #define NUM_PLATES              5
 #define NUM_LEDS_PER_PLATE      26
-#define MAX_BRIGHTNESS          250
+#define MAX_BRIGHTNESS          200
 #define MIN_BRIGHTNESS          50
+#define MIN_DEPTH               100
 #define MAX_SPEED_THRESHOLD     8
-#define RECALC_RANDOM_INTERVAL  300
+#define RECALC_RANDOM_INTERVAL  600
 
 CRGB leds[NUM_LEDS_TOTAL];
 
@@ -22,6 +23,9 @@ int count = 0;
 int min_speed = 2;
 int max_speed = 8;
 int speed_direction = 0;
+int pulse_together = 0;
+int depth [NUM_PLATES];
+int ready = 0;
 
 void setup() {
   randomSeed(analogRead(0));
@@ -37,7 +41,8 @@ void setup() {
   for (int p = 0; p <= NUM_PLATES - 1; p++){ //init plates
     direction[p] = 1;
     freeze[p] = 0;
-    speed[p] = random(min_speed,max_speed);
+    speed[p] = random(min_speed, max_speed);
+    depth[p] = random(MIN_BRIGHTNESS, MIN_DEPTH);
     h[p] = 35;
     s[p] = 200;
     v[p] = 0;
@@ -67,6 +72,14 @@ void offcenterPulse(){
       // Serial.println (" << Speed Direction Changed - DOWN >>");
     }
 
+    if (max_speed == min_speed){
+      pulse_together = 1;
+    }
+    else {
+      pulse_together = 0;
+      ready = 0;
+    }
+
     if (speed_direction == 0){ // start to bring pulse speed into unison
       max_speed--;
     }
@@ -76,6 +89,12 @@ void offcenterPulse(){
 
     for (int p = 0; p <= NUM_PLATES - 1; p++) { // set new speed
       speed[p] = random(min_speed,max_speed);
+      if (pulse_together == 1){
+        depth[p] = MIN_BRIGHTNESS;
+      }
+      else{
+        depth[p] = random(MIN_BRIGHTNESS, MIN_DEPTH);
+      }
       freeze[p] = 0;
       Serial.print ("Plate: ");
       Serial.print (p);
@@ -83,41 +102,42 @@ void offcenterPulse(){
       Serial.print (speed_direction);
       Serial.print (" | Max Speed: ");
       Serial.print (max_speed);
+      Serial.print (" | Depth: ");
+      Serial.print (depth[p]);
       Serial.print (" | Speed: ");
       Serial.println (speed[p]);
     }
     Serial.println ("======================================================== ");
   }
 
-  for (int p = 0; p <= NUM_PLATES - 1; p++) { // sync plates with matching speeds
-    for (int o = p + 1; o <= NUM_PLATES - 1; o++) {
-      // if (p != o){
-        if (speed[p] == speed[o]){ // allow plates to "catch" one another by locking brightness momentarily
-          if (v[o] == v[p]){ 
-            if (freeze[o] == 1){
-              freeze[o] = 0; // thaw
-              v[o] = v[p];
-              Serial.print("Thawing Plate ");
-              Serial.print(o);
-              Serial.print(" - ");
-              Serial.print(v[o]);
-              Serial.print(" | ");
-              Serial.println(v[p]);
-            }
-          }
-          else{
-            if (freeze[o] != 1){
-              freeze[o] = 1; // freeze
-              Serial.print("Freezing Plate ");
-              Serial.print(o);
-              Serial.print(" - ");
-              Serial.print(v[o]);
-              Serial.print(" | ");
-              Serial.println(v[p]);
-            }
+  if (pulse_together == 1) {
+    if (ready == 0) {
+      for (int p = 0; p <= NUM_PLATES - 1; p++) {
+        if (v[p] == MIN_BRIGHTNESS){
+          ready = 1;
+          if (freeze[p] != 1){
+            freeze[p] = 1; // freeze
+            Serial.print("Freezing Plate ");
+            Serial.print(p);
+            Serial.print(" - ");
+            Serial.println(v[p]);
           }
         }
-      // }
+        else{
+          ready = 0;
+        }
+      }
+    }
+    else {
+      for (int p = 0; p <= NUM_PLATES - 1; p++) {
+        if (freeze[p] == 1){
+          freeze[p] = 0; //thaw
+          Serial.print("Thawing Plate ");
+          Serial.print(p);
+          Serial.print(" - ");
+          Serial.println(v[p]);
+        }
+      }
     }
   }
 
@@ -134,8 +154,8 @@ void offcenterPulse(){
       if (freeze[p] != 1){
         v[p] = v[p] - speed[p];
       }
-      if ( v[p] <= MIN_BRIGHTNESS) {
-        v[p] = MIN_BRIGHTNESS;
+      if ( v[p] <= depth[p]) {
+        v[p] = depth[p];
         direction[p] = 1;
       }
     }
