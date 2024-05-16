@@ -1,6 +1,7 @@
 #include <FastLED.h>
 
 #define LED_PIN                 10
+#define POWER_SENSOR            8
 #define NUM_LEDS_TOTAL          300
 #define NUM_LEDS                130
 #define NUM_PLATES              5
@@ -26,8 +27,11 @@ int speed_direction = 0;
 int pulse_together = 0;
 int depth [NUM_PLATES];
 int ready = 0;
+int power_state = 0;
+int power_val = 0;
 
 void setup() {
+  pinMode(POWER_SENSOR, INPUT);
   randomSeed(analogRead(0));
   Serial.begin(9600);
   FastLED.addLeds<WS2812, LED_PIN, GRB>(leds, NUM_LEDS_TOTAL);
@@ -35,7 +39,7 @@ void setup() {
 
   
   for (int i = (NUM_PLATES * NUM_LEDS_PER_PLATE); i < NUM_LEDS_TOTAL; i++) { // set top light
-      leds[i] = (CHSV( 45, 200, 200));
+      leds[i] = (CHSV( 35, 200, 255));
   }
 
   for (int p = 0; p <= NUM_PLATES - 1; p++){ //init plates
@@ -51,7 +55,18 @@ void setup() {
 }
 
 void loop() {
+  // int power_sensor = digitalRead(POWER_SENSOR);
+  // if (power_sensor == HIGH){
+  //   if (power_state == 0){
+  //     power_state = 1;
+  //     Serial.println (power_state);
+  //   }
+  //   else {
+  //     Serial.println (power_state);
+  //   }
+  // }
   offcenterPulse();
+  // shimmer();
 }
 
 void offcenterPulse(){
@@ -72,19 +87,19 @@ void offcenterPulse(){
       // Serial.println (" << Speed Direction Changed - DOWN >>");
     }
 
+    if (speed_direction == 0){ // start to bring pulse speed into unison
+      max_speed--;
+    }
+    else { // start to spread pulse speed apart
+      max_speed++;
+    }
+
     if (max_speed == min_speed){
       pulse_together = 1;
     }
     else {
       pulse_together = 0;
       ready = 0;
-    }
-
-    if (speed_direction == 0){ // start to bring pulse speed into unison
-      max_speed--;
-    }
-    else { // start to spread pulse speed apart
-      max_speed++;
     }
 
     for (int p = 0; p <= NUM_PLATES - 1; p++) { // set new speed
@@ -100,6 +115,8 @@ void offcenterPulse(){
       Serial.print (p);
       Serial.print (" | Direction: ");
       Serial.print (speed_direction);
+      Serial.print (" | Min Speed: ");
+      Serial.print (min_speed);
       Serial.print (" | Max Speed: ");
       Serial.print (max_speed);
       Serial.print (" | Depth: ");
@@ -107,13 +124,13 @@ void offcenterPulse(){
       Serial.print (" | Speed: ");
       Serial.println (speed[p]);
     }
-    Serial.println ("======================================================== ");
+    Serial.println ("================================================================================= ");
   }
 
   if (pulse_together == 1) {
     if (ready == 0) {
       for (int p = 0; p <= NUM_PLATES - 1; p++) {
-        if (v[p] == MIN_BRIGHTNESS){
+        if (v[p] <= MIN_BRIGHTNESS){
           ready = 1;
           if (freeze[p] != 1){
             freeze[p] = 1; // freeze
@@ -164,6 +181,20 @@ void offcenterPulse(){
     hsv2rgb_rainbow( CHSV(h[p], s[p], v[p]), rgb );
     writeLEDs();
   }
+}
+
+void shimmer(){
+    int star = random(0,NUM_LEDS);
+    for (int i = 0; i < NUM_LEDS; i++) {
+      if (i == star) {
+        leds[i] = (CHSV( 45, 200, MAX_BRIGHTNESS));
+      }
+      else{
+        leds[i] = (CHSV( 45, 200, MIN_BRIGHTNESS));
+      }
+    }
+  FastLED.show();
+  delay(1000);
 }
 
 void writeLEDs(){
