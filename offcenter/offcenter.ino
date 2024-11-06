@@ -1,7 +1,7 @@
 #include <FastLED.h>
 
 #define LED_PIN                 10
-#define POWER_SENSOR            8
+#define POWER_SWITCH            2
 #define NUM_LEDS_TOTAL          300
 #define NUM_LEDS                130
 #define NUM_PLATES              5
@@ -27,20 +27,18 @@ int speed_direction = 0;
 int pulse_together = 0;
 int depth [NUM_PLATES];
 int ready = 0;
-int power_state = 0;
-int power_val = 0;
+volatile int power_state = 0;
+unsigned long previousTenthSecondMillis = 0L;
+long tenthSecond = 100UL;
+byte buttonStillDown = 0;
 
 void setup() {
-  pinMode(POWER_SENSOR, INPUT);
+  pinMode(POWER_SWITCH, INPUT_PULLUP);
+  attachInterrupt(digitalPinToInterrupt(POWER_SWITCH), power, FALLING);
   randomSeed(analogRead(0));
   Serial.begin(9600);
   FastLED.addLeds<WS2812, LED_PIN, GRB>(leds, NUM_LEDS_TOTAL);
   FastLED.clear();
-
-  
-  for (int i = (NUM_PLATES * NUM_LEDS_PER_PLATE); i < NUM_LEDS_TOTAL; i++) { // set top light
-      leds[i] = (CHSV( 35, 200, 255));
-  }
 
   for (int p = 0; p <= NUM_PLATES - 1; p++){ //init plates
     direction[p] = 1;
@@ -55,18 +53,21 @@ void setup() {
 }
 
 void loop() {
-  // int power_sensor = digitalRead(POWER_SENSOR);
-  // if (power_sensor == HIGH){
-  //   if (power_state == 0){
-  //     power_state = 1;
-  //     Serial.println (power_state);
-  //   }
-  //   else {
-  //     Serial.println (power_state);
-  //   }
-  // }
-  offcenterPulse();
-  // shimmer();
+  if (power_state == 1){
+    offcenterPulse();
+  }
+  else {
+    fadeOut();
+  }
+}
+
+void power(){
+  static unsigned long last_interrupt_time = 0;
+  unsigned long interrupt_time = millis();
+  if (interrupt_time - last_interrupt_time > 200) {
+    power_state = !power_state;
+  }
+  last_interrupt_time = interrupt_time;
 }
 
 void offcenterPulse(){
@@ -183,18 +184,20 @@ void offcenterPulse(){
   }
 }
 
-void shimmer(){
-    int star = random(0,NUM_LEDS);
-    for (int i = 0; i < NUM_LEDS; i++) {
-      if (i == star) {
-        leds[i] = (CHSV( 45, 200, MAX_BRIGHTNESS));
-      }
-      else{
-        leds[i] = (CHSV( 45, 200, MIN_BRIGHTNESS));
-      }
+void fadeOut(){
+  for (int p = 0; p <= NUM_PLATES - 1; p++) {
+    if (freeze[p] != 1){
+      v[p] = v[p] - speed[p];
     }
-  FastLED.show();
-  delay(1000);
+    if ( v[p] <= 0) {
+      v[p] = 0;
+      direction[p] = 1;
+    }
+      
+    CRGB rgb;
+    hsv2rgb_rainbow( CHSV(h[p], s[p], v[p]), rgb );
+    writeLEDs();
+  }
 }
 
 void writeLEDs(){
