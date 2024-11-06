@@ -1,54 +1,210 @@
 #include <FastLED.h>
 
-#define LED_PIN     10
-#define NUM_LEDS    300
+#define LED_PIN                 10
+#define POWER_SWITCH            2
+#define NUM_LEDS_TOTAL          300
+#define NUM_LEDS                130
+#define NUM_PLATES              5
+#define NUM_LEDS_PER_PLATE      26
+#define MAX_BRIGHTNESS          200
+#define MIN_BRIGHTNESS          50
+#define MIN_DEPTH               100
+#define MAX_SPEED_THRESHOLD     8
+#define RECALC_RANDOM_INTERVAL  600
 
-CRGB leds[NUM_LEDS];
-// CHSV yellow = (45, 200, 255);
+CRGB leds[NUM_LEDS_TOTAL];
+
+int direction [NUM_PLATES];
+int speed [NUM_PLATES];
+int h [NUM_PLATES];
+int s [NUM_PLATES];
+int v [NUM_PLATES];
+int freeze [NUM_PLATES];
+int count = 0;
+int min_speed = 2;
+int max_speed = 8;
+int speed_direction = 0;
+int pulse_together = 0;
+int depth [NUM_PLATES];
+int ready = 0;
+volatile int power_state = 0;
+unsigned long previousTenthSecondMillis = 0L;
+long tenthSecond = 100UL;
+byte buttonStillDown = 0;
 
 void setup() {
+  pinMode(POWER_SWITCH, INPUT_PULLUP);
+  attachInterrupt(digitalPinToInterrupt(POWER_SWITCH), power, FALLING);
+  randomSeed(analogRead(0));
   Serial.begin(9600);
-  FastLED.addLeds<WS2812, LED_PIN, GRB>(leds, NUM_LEDS);
+  FastLED.addLeds<WS2812, LED_PIN, GRB>(leds, NUM_LEDS_TOTAL);
   FastLED.clear();
-  for (int i = 0; i <= NUM_LEDS; i++) {
-    // leds[i] = CRGB(245, 212, 20); //yellow
-    leds[i] = CHSV (45, 200, 255);
+
+  for (int p = 0; p <= NUM_PLATES - 1; p++){ //init plates
+    direction[p] = 1;
+    freeze[p] = 0;
+    speed[p] = random(min_speed, max_speed);
+    depth[p] = random(MIN_BRIGHTNESS, MIN_DEPTH);
+    h[p] = 35;
+    s[p] = 200;
+    v[p] = 0;
   }
   FastLED.show();
-  // int plate1[] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
-  // int plate2[] = {10, 11, 12, 13, 14, 15, 16, 17, 18, 19};
-  // int plate3[] = {20, 21, 22, 23, 24, 25, 26, 27, 28, 29};
-  // int plate4[] = {30, 31, 32, 33, 34, 35, 36, 37, 38, 39};
-  int plates[4][10] = {
-                        { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9 },
-                        { 10, 11, 12, 13, 14, 15, 16, 17, 18, 19 },
-                        { 20, 21, 22, 23, 24, 25, 26, 27, 28, 29 },
-                        { 30, 31, 32, 33, 34, 35, 36, 37, 38, 39 }
-                      };
 }
 
 void loop() {
-  int fadespeed = random(1,4);
-  int delayspeed = random(0,10);
-
-  CHSV yellow(25, 120, 150);
-  //fade in
-    for (int b = 10; b < 150; b=b+fadespeed) {
-      for (int i = 0; i <= NUM_LEDS; i++) {
-        yellow.v = b;
-        leds[i] = yellow; // update leds[0] with the HSV result
-      }
-      FastLED.show();
-      delay(delayspeed);
-    }
-
-  //fade out
-    for (int b = 150; b >= 10; b=b-fadespeed) {
-      for (int i = 0; i <= NUM_LEDS; i++) {
-        yellow.v = b;
-        leds[i] = yellow; // update leds[0] with the HSV result
-      }
-      FastLED.show();
-      delay(delayspeed);
-    }
+  if (power_state == 1){
+    offcenterPulse();
+  }
+  else {
+    fadeOut();
+  }
 }
+
+void power(){
+  static unsigned long last_interrupt_time = 0;
+  unsigned long interrupt_time = millis();
+  if (interrupt_time - last_interrupt_time > 200) {
+    power_state = !power_state;
+  }
+  last_interrupt_time = interrupt_time;
+}
+
+void offcenterPulse(){
+// this function causes the plates to pulse randomly, slowly moving toward a pattern of pulsing in unison, then slowly moving back to a pattern for randomness.
+
+  count ++;
+  if (count == RECALC_RANDOM_INTERVAL){ // recalculate speed of all plates every so often to create some more randomness
+    count = 0;
+    randomSeed(analogRead(0));
+
+    if (max_speed <= min_speed){ 
+      speed_direction = 1;
+      // Serial.println (" << Speed Direction Changed - UP >>");
+    }
+
+    if (max_speed >= MAX_SPEED_THRESHOLD){
+      speed_direction = 0;
+      // Serial.println (" << Speed Direction Changed - DOWN >>");
+    }
+
+    if (speed_direction == 0){ // start to bring pulse speed into unison
+      max_speed--;
+    }
+    else { // start to spread pulse speed apart
+      max_speed++;
+    }
+
+    if (max_speed == min_speed){
+      pulse_together = 1;
+    }
+    else {
+      pulse_together = 0;
+      ready = 0;
+    }
+
+    for (int p = 0; p <= NUM_PLATES - 1; p++) { // set new speed
+      speed[p] = random(min_speed,max_speed);
+      if (pulse_together == 1){
+        depth[p] = MIN_BRIGHTNESS;
+      }
+      else{
+        depth[p] = random(MIN_BRIGHTNESS, MIN_DEPTH);
+      }
+      freeze[p] = 0;
+      Serial.print ("Plate: ");
+      Serial.print (p);
+      Serial.print (" | Direction: ");
+      Serial.print (speed_direction);
+      Serial.print (" | Min Speed: ");
+      Serial.print (min_speed);
+      Serial.print (" | Max Speed: ");
+      Serial.print (max_speed);
+      Serial.print (" | Depth: ");
+      Serial.print (depth[p]);
+      Serial.print (" | Speed: ");
+      Serial.println (speed[p]);
+    }
+    Serial.println ("================================================================================= ");
+  }
+
+  if (pulse_together == 1) {
+    if (ready == 0) {
+      for (int p = 0; p <= NUM_PLATES - 1; p++) {
+        if (v[p] <= MIN_BRIGHTNESS){
+          ready = 1;
+          if (freeze[p] != 1){
+            freeze[p] = 1; // freeze
+            Serial.print("Freezing Plate ");
+            Serial.print(p);
+            Serial.print(" - ");
+            Serial.println(v[p]);
+          }
+        }
+        else{
+          ready = 0;
+        }
+      }
+    }
+    else {
+      for (int p = 0; p <= NUM_PLATES - 1; p++) {
+        if (freeze[p] == 1){
+          freeze[p] = 0; //thaw
+          Serial.print("Thawing Plate ");
+          Serial.print(p);
+          Serial.print(" - ");
+          Serial.println(v[p]);
+        }
+      }
+    }
+  }
+
+  for (int p = 0; p <= NUM_PLATES - 1; p++) {
+    if (direction[p] == 1) { // fade in
+      if (freeze[p] != 1){
+        v[p] = v[p] + speed[p];
+      }
+      if ( v[p] >= MAX_BRIGHTNESS) {
+        direction[p] = 0;
+      }
+    }
+    else { // fade out
+      if (freeze[p] != 1){
+        v[p] = v[p] - speed[p];
+      }
+      if ( v[p] <= depth[p]) {
+        v[p] = depth[p];
+        direction[p] = 1;
+      }
+    }
+
+    CRGB rgb;
+    hsv2rgb_rainbow( CHSV(h[p], s[p], v[p]), rgb );
+    writeLEDs();
+  }
+}
+
+void fadeOut(){
+  for (int p = 0; p <= NUM_PLATES - 1; p++) {
+    if (freeze[p] != 1){
+      v[p] = v[p] - speed[p];
+    }
+    if ( v[p] <= 0) {
+      v[p] = 0;
+      direction[p] = 1;
+    }
+      
+    CRGB rgb;
+    hsv2rgb_rainbow( CHSV(h[p], s[p], v[p]), rgb );
+    writeLEDs();
+  }
+}
+
+void writeLEDs(){
+  for (int i = 0; i < NUM_LEDS; i++) {
+    int p = i/NUM_LEDS_PER_PLATE;
+    leds[i] = (CHSV( h[p], s[p], v[p]));
+  }
+  FastLED.show();
+}
+
